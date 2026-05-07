@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { loginJobSeeker, loginCompany, saveSession, seekerApi, companyApi, isAuthenticated } from "../../lib/api";
 
 // ─── Minimal SVG logo mark ────────────────────────────────────────────────────
@@ -52,6 +53,8 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
   const [showPass, setShowPass] = useState(false);
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "1";
 
   // If already authenticated, skip to the board.
   // Empty dep array = runs once on mount only.
@@ -190,6 +193,19 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Registration success banner */}
+          {justRegistered && (
+            <div className="mb-5 flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm animate-fade-in">
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <div>
+                <p className="font-semibold">Account created!</p>
+                <p className="text-emerald-700 text-xs mt-0.5">Sign in below to access your dashboard.</p>
+              </div>
+            </div>
+          )}
+
           {/* Actor toggle */}
           <div className="flex bg-slate-100 rounded-lg p-1 mb-6">
             <ActorTab
@@ -311,6 +327,16 @@ export default function LoginPage() {
               : <>Looking for work?{" "}<button type="button" onClick={() => setActor("seeker")} className="text-accent font-medium hover:underline">Sign in as a Job Seeker</button></>
             }
           </p>
+
+          {/* Sign-up link — only relevant for job seekers */}
+          {actor === "seeker" && (
+            <p className="text-center text-sm text-slate-500 mt-2">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="text-accent font-semibold hover:underline">
+                Sign up
+              </Link>
+            </p>
+          )}
 
         </div>
       </div>

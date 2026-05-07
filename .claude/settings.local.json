@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv /home/rana/career-portal/frontend/app/signup/signup_page.js /home/rana/career-portal/frontend/app/signup/page.js)"
+    ],
+    "additionalDirectories": [
+      "/home/rana/career-portal/frontend/app/signup"
+    ]
+  }
+}
