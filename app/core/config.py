@@ -5,6 +5,7 @@ Centralised settings loaded from the .env file via pydantic-settings.
 Access anywhere with:  from app.core.config import settings
 """
 
+import os
 from pydantic_settings import BaseSettings
 
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Database
     # ------------------------------------------------------------------
-    DATABASE_URL: str  # e.g. postgresql://user:pass@localhost:5432/career_portal
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://localhost:5432/career_portal")  # e.g. postgresql://user:pass@localhost:5432/career_portal
 
     # ------------------------------------------------------------------
     # JWT
