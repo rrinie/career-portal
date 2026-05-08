@@ -181,7 +181,7 @@ def login_company(
         subject    = company.CompanyID,
         actor_type = "company",
     )
-    return Token(access_token=token)
+    return Token(access_token=token, token_type="bearer")
 
 
 # ===========================================================================
