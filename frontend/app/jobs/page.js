@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { applicationsApi } from '@/lib/api';
+import { applicationsApi, jobsApi } from '@/lib/api';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Briefcase, MapPin, Clock } from 'lucide-react';
 
@@ -12,8 +12,7 @@ export default function JobsPage() {
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:8002/jobs/postings');
-        const data = await response.json();
+        const { data } = await jobsApi.list();
         setJobs(data);
       } catch (err) {
         console.error("Failed to fetch jobs", err);
