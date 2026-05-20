@@ -11,7 +11,7 @@ ReDoc:        http://localhost:8002/redoc
 """
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware # 1. Import it first
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers import auth, jobseekers, companies, jobs, applications, interviews
 
 
@@ -31,7 +31,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
