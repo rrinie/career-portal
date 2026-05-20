@@ -1,213 +1,283 @@
 """
-models/models.py
-----------------
-SQLAlchemy ORM models that mirror the PostgreSQL schema EXACTLY.
+SQLAlchemy ORM models for the normalized Career Portal schema.
 
-Rules enforced:
-  - Table names match schema.sql (PascalCase, e.g. "Company", "JobSeeker")
-  - Column names match schema.sql verbatim (PascalCase columns)
-  - Primary keys use Integer + autoincrement (SERIAL in Postgres)
-  - No UUIDs
-  - VideoURL is a plain String — no binary blobs
-  - All foreign keys and ON DELETE behaviours match schema.sql
+The database engineer's MySQL AUTO_INCREMENT columns are represented with
+PostgreSQL-compatible integer primary keys. SQLAlchemy will emit the correct
+autoincrement/serial identity behavior for PostgreSQL dialects.
 """
 
-from datetime import date, datetime
+from datetime import date as date_type, datetime
 from decimal import Decimal
 
-from sqlalchemy import (
-    Column,
-    Date,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    func,
-)
-from sqlalchemy.orm import relationship
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 
-# ---------------------------------------------------------------------------
-# 1. Company
-# ---------------------------------------------------------------------------
 class Company(Base):
-    __tablename__ = "company"
+    __tablename__ = "Company"
 
-    CompanyID     = Column(Integer, primary_key=True, autoincrement=True)
-    CompanyName   = Column(String(100), nullable=False)
-    Industry      = Column(String(50))
-    City          = Column(String(50))
-    ContactEmail  = Column(String(100), unique=True, nullable=False)
-    PasswordHash = Column(String(255), nullable=False)
-    # Relationships
-    job_postings  = relationship("JobPosting", back_populates="company",
-                                 cascade="all, delete-orphan")
+    CompanyID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    CompanyName: Mapped[str] = mapped_column(String(100), nullable=False)
+    Industry: Mapped[str | None] = mapped_column(String(50))
+    City: Mapped[str | None] = mapped_column(String(50))
+    ContactEmail: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    PasswordHash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    job_postings: Mapped[list["JobPosting"]] = relationship(
+        "JobPosting",
+        back_populates="company",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
-# ---------------------------------------------------------------------------
-# 2. Department
-# ---------------------------------------------------------------------------
 class Department(Base):
-    __tablename__ = "department"
+    __tablename__ = "Department"
 
-    DepartmentID   = Column(Integer, primary_key=True, autoincrement=True)
-    DepartmentName = Column(String(100), nullable=False)
+    DepartmentID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    DepartmentName: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    # Relationships
-    positions = relationship("Position", back_populates="department")
+    positions: Mapped[list["Position"]] = relationship(
+        "Position",
+        back_populates="department",
+    )
 
 
-# ---------------------------------------------------------------------------
-# 3. Position
-# ---------------------------------------------------------------------------
 class Position(Base):
-    __tablename__ = "position"
+    __tablename__ = "Position"
 
-    PositionID   = Column(Integer, primary_key=True, autoincrement=True)
-    DepartmentID = Column(Integer, ForeignKey("department.DepartmentID"), nullable=False)
-    PositionName = Column(String(100), nullable=False)
+    PositionID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    DepartmentID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("Department.DepartmentID"),
+        nullable=False,
+    )
+    PositionName: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    # Relationships
-    department   = relationship("Department", back_populates="positions")
-    job_postings = relationship("JobPosting", back_populates="position")
+    department: Mapped["Department"] = relationship(
+        "Department",
+        back_populates="positions",
+    )
+    job_postings: Mapped[list["JobPosting"]] = relationship(
+        "JobPosting",
+        back_populates="position",
+    )
 
 
-# ---------------------------------------------------------------------------
-# 4. JobSeeker
-# ---------------------------------------------------------------------------
 class JobSeeker(Base):
-    __tablename__ = "jobseeker"
+    __tablename__ = "JobSeeker"
 
-    SeekerID     = Column(Integer, primary_key=True, autoincrement=True)
-    FirstName    = Column(String(50), nullable=False)
-    LastName     = Column(String(50), nullable=False)
-    Email        = Column(String(100), unique=True, nullable=False)
-    PasswordHash = Column(String(255), nullable=False)
-    Phone        = Column(String(20))
+    SeekerID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    FirstName: Mapped[str] = mapped_column(String(50), nullable=False)
+    LastName: Mapped[str] = mapped_column(String(50), nullable=False)
+    Email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    PasswordHash: Mapped[str] = mapped_column(String(255), nullable=False)
+    Phone: Mapped[str | None] = mapped_column(String(20))
 
-    # Relationships
-    cv_profile   = relationship("CV_Profile", back_populates="seeker",
-                                uselist=False, cascade="all, delete-orphan")
-    applications = relationship("Application", back_populates="seeker",
-                                cascade="all, delete-orphan")
+    cv_profile: Mapped["CV_Profile | None"] = relationship(
+        "CV_Profile",
+        back_populates="seeker",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
+    applications: Mapped[list["Application"]] = relationship(
+        "Application",
+        back_populates="seeker",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    job_postings: Mapped[list["JobPosting"]] = relationship(
+        "JobPosting",
+        secondary="Application",
+        back_populates="seekers",
+        viewonly=True,
+    )
 
 
-# ---------------------------------------------------------------------------
-# 5. CV_Profile
-# ---------------------------------------------------------------------------
 class CV_Profile(Base):
-    __tablename__ = "cv_profile"
+    __tablename__ = "CV_Profile"
 
-    ProfileID       = Column(Integer, primary_key=True, autoincrement=True)
-    SeekerID        = Column(Integer, ForeignKey("jobseeker.SeekerID", ondelete="CASCADE"),
-                             unique=True, nullable=False)
-    EducationLevel  = Column(String(50))
-    ExperienceYears = Column(Integer)
-    LinkedInURL     = Column(String(255))
-    Summary         = Column(Text)
+    ProfileID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    SeekerID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("JobSeeker.SeekerID", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    EducationLevel: Mapped[str | None] = mapped_column(String(50))
+    ExperienceYears: Mapped[int | None] = mapped_column(Integer)
+    LinkedInURL: Mapped[str | None] = mapped_column(String(255))
+    Summary: Mapped[str | None] = mapped_column(Text)
 
-    # Relationships
-    seeker = relationship("JobSeeker", back_populates="cv_profile")
+    seeker: Mapped["JobSeeker"] = relationship(
+        "JobSeeker",
+        back_populates="cv_profile",
+    )
 
 
-# ---------------------------------------------------------------------------
-# 6. JobPosting
-# ---------------------------------------------------------------------------
 class JobPosting(Base):
-    __tablename__ = "jobposting"
+    __tablename__ = "JobPosting"
 
-    PostingID  = Column(Integer, primary_key=True, autoincrement=True)
-    CompanyID  = Column(Integer, ForeignKey("company.CompanyID", ondelete="CASCADE"),
-                        nullable=False)
-    PositionID = Column(Integer, ForeignKey("position.PositionID"), nullable=False)
-    Title      = Column(String(100), nullable=False)
-    WorkType   = Column(String(50))
-    Deadline   = Column(Date)
+    PostingID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    CompanyID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("Company.CompanyID", ondelete="CASCADE"),
+        nullable=False,
+    )
+    PositionID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("Position.PositionID"),
+        nullable=False,
+    )
+    Title: Mapped[str] = mapped_column(String(100), nullable=False)
+    WorkType: Mapped[str | None] = mapped_column(String(50))
+    Deadline: Mapped[date_type | None] = mapped_column(Date)
 
-    # Relationships
-    company          = relationship("Company", back_populates="job_postings")
-    position         = relationship("Position", back_populates="job_postings")
-    question_packages = relationship("QuestionPackage", back_populates="job_posting",
-                                     cascade="all, delete-orphan")
-    applications     = relationship("Application", back_populates="job_posting",
-                                    cascade="all, delete-orphan")
+    company: Mapped["Company"] = relationship(
+        "Company",
+        back_populates="job_postings",
+    )
+    position: Mapped["Position"] = relationship(
+        "Position",
+        back_populates="job_postings",
+    )
+    question_packages: Mapped[list["QuestionPackage"]] = relationship(
+        "QuestionPackage",
+        back_populates="job_posting",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    applications: Mapped[list["Application"]] = relationship(
+        "Application",
+        back_populates="job_posting",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    seekers: Mapped[list["JobSeeker"]] = relationship(
+        "JobSeeker",
+        secondary="Application",
+        back_populates="job_postings",
+        viewonly=True,
+    )
 
 
-# ---------------------------------------------------------------------------
-# 7. QuestionPackage
-# ---------------------------------------------------------------------------
 class QuestionPackage(Base):
-    __tablename__ = "questionpackage"
+    __tablename__ = "QuestionPackage"
 
-    PackageID        = Column(Integer, primary_key=True, autoincrement=True)
-    PostingID        = Column(Integer, ForeignKey("jobposting.PostingID", ondelete="CASCADE"),
-                              nullable=False)
-    PackageName      = Column(String(100))
-    TimeLimitMinutes = Column(Integer)
+    PackageID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    PostingID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("JobPosting.PostingID", ondelete="CASCADE"),
+        nullable=False,
+    )
+    PackageName: Mapped[str | None] = mapped_column(String(100))
+    TimeLimitMinutes: Mapped[int | None] = mapped_column(Integer)
 
-    # Relationships
-    job_posting      = relationship("JobPosting", back_populates="question_packages")
-    questions        = relationship("Question", back_populates="package",
-                                    cascade="all, delete-orphan")
-    video_interviews = relationship("VideoInterview", back_populates="package")
+    job_posting: Mapped["JobPosting"] = relationship(
+        "JobPosting",
+        back_populates="question_packages",
+    )
+    questions: Mapped[list["Question"]] = relationship(
+        "Question",
+        back_populates="package",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    video_interviews: Mapped[list["VideoInterview"]] = relationship(
+        "VideoInterview",
+        back_populates="package",
+    )
 
 
-# ---------------------------------------------------------------------------
-# 8. Question
-# ---------------------------------------------------------------------------
 class Question(Base):
-    __tablename__ = "question"
+    __tablename__ = "Question"
 
-    QuestionID   = Column(Integer, primary_key=True, autoincrement=True)
-    PackageID    = Column(Integer, ForeignKey("questionpackage.PackageID", ondelete="CASCADE"),
-                          nullable=False)
-    QuestionText = Column(Text, nullable=False)
-    Points       = Column(Integer)
+    QuestionID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    PackageID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("QuestionPackage.PackageID", ondelete="CASCADE"),
+        nullable=False,
+    )
+    QuestionText: Mapped[str] = mapped_column(Text, nullable=False)
+    Points: Mapped[int | None] = mapped_column(Integer)
 
-    # Relationships
-    package = relationship("QuestionPackage", back_populates="questions")
+    package: Mapped["QuestionPackage"] = relationship(
+        "QuestionPackage",
+        back_populates="questions",
+    )
 
 
-# ---------------------------------------------------------------------------
-# 9. Application
-# ---------------------------------------------------------------------------
 class Application(Base):
-    __tablename__ = "application"
+    __tablename__ = "Application"
 
-    ApplicationID   = Column(Integer, primary_key=True, autoincrement=True)
-    SeekerID        = Column(Integer, ForeignKey("jobseeker.SeekerID", ondelete="CASCADE"),
-                             nullable=False)
-    PostingID       = Column(Integer, ForeignKey("jobposting.PostingID", ondelete="CASCADE"),
-                             nullable=False)
-    ApplicationDate = Column(DateTime, server_default=func.now())
-    Status          = Column(String(50), default="Pending")
+    ApplicationID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    SeekerID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("JobSeeker.SeekerID", ondelete="CASCADE"),
+        nullable=False,
+    )
+    PostingID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("JobPosting.PostingID", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ApplicationDate: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+    Status: Mapped[str] = mapped_column(
+        String(50),
+        default="Pending",
+        server_default="Pending",
+        nullable=False,
+    )
 
-    # Relationships
-    seeker           = relationship("JobSeeker", back_populates="applications")
-    job_posting      = relationship("JobPosting", back_populates="applications")
-    video_interviews = relationship("VideoInterview", back_populates="application",
-                                    cascade="all, delete-orphan")
+    seeker: Mapped["JobSeeker"] = relationship(
+        "JobSeeker",
+        back_populates="applications",
+    )
+    job_posting: Mapped["JobPosting"] = relationship(
+        "JobPosting",
+        back_populates="applications",
+    )
+    video_interviews: Mapped[list["VideoInterview"]] = relationship(
+        "VideoInterview",
+        back_populates="application",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
-# ---------------------------------------------------------------------------
-# 10. VideoInterview
-# ---------------------------------------------------------------------------
 class VideoInterview(Base):
-    __tablename__ = "videointerview"
+    __tablename__ = "VideoInterview"
 
-    InterviewID   = Column(Integer, primary_key=True, autoincrement=True)
-    ApplicationID = Column(Integer, ForeignKey("application.ApplicationID", ondelete="CASCADE"),
-                           nullable=False)
-    PackageID     = Column(Integer, ForeignKey("questionpackage.PackageID"), nullable=False)
-    # Rule: video stored as URL string — never a binary blob
-    VideoURL      = Column(String(255))
-    Score         = Column(Numeric(5, 2))
-    ReviewerNotes = Column(Text)
+    InterviewID: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ApplicationID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("Application.ApplicationID", ondelete="CASCADE"),
+        nullable=False,
+    )
+    PackageID: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("QuestionPackage.PackageID"),
+        nullable=False,
+    )
+    VideoURL: Mapped[str | None] = mapped_column(String(255))
+    Score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    ReviewerNotes: Mapped[str | None] = mapped_column(Text)
 
-    # Relationships
-    application = relationship("Application", back_populates="video_interviews")
-    package     = relationship("QuestionPackage", back_populates="video_interviews")
+    application: Mapped["Application"] = relationship(
+        "Application",
+        back_populates="video_interviews",
+    )
+    package: Mapped["QuestionPackage"] = relationship(
+        "QuestionPackage",
+        back_populates="video_interviews",
+    )
+
+
+CVProfile = CV_Profile

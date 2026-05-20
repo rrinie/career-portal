@@ -1,80 +1,68 @@
 """
-schemas/jobseeker.py
---------------------
-Pydantic schemas for the JobSeeker and CV_Profile domain.
-
-Naming convention:
-  <Entity>Create  – payload accepted on POST (never exposes PasswordHash)
-  <Entity>Update  – payload accepted on PATCH  (all fields Optional)
-  <Entity>Out     – safe response shape (never exposes PasswordHash)
+Pydantic v2 schemas for JobSeeker and CV_Profile.
 """
 
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.base import OrmBase
 
 
-# ---------------------------------------------------------------------------
-# CV_Profile  (nested inside JobSeekerOut)
-# ---------------------------------------------------------------------------
-class CV_ProfileCreate(BaseModel):
-    EducationLevel:  Optional[str]  = None
-    ExperienceYears: Optional[int]  = Field(None, ge=0)
-    LinkedInURL:     Optional[str]  = None
-    Summary:         Optional[str]  = None
+class CV_ProfileBase(BaseModel):
+    EducationLevel: str | None = Field(None, max_length=50)
+    ExperienceYears: int | None = Field(None, ge=0)
+    LinkedInURL: str | None = Field(None, max_length=255)
+    Summary: str | None = None
+
+
+class CV_ProfileCreate(CV_ProfileBase):
+    pass
 
 
 class CV_ProfileUpdate(BaseModel):
-    EducationLevel:  Optional[str]  = None
-    ExperienceYears: Optional[int]  = Field(None, ge=0)
-    LinkedInURL:     Optional[str]  = None
-    Summary:         Optional[str]  = None
+    EducationLevel: str | None = Field(None, max_length=50)
+    ExperienceYears: int | None = Field(None, ge=0)
+    LinkedInURL: str | None = Field(None, max_length=255)
+    Summary: str | None = None
 
 
 class CV_ProfileOut(OrmBase):
-    ProfileID:       int
-    SeekerID:        int
-    EducationLevel:  Optional[str]  = None
-    ExperienceYears: Optional[int]  = None
-    LinkedInURL:     Optional[str]  = None
-    Summary:         Optional[str]  = None
+    ProfileID: int
+    SeekerID: int
+    EducationLevel: str | None = None
+    ExperienceYears: int | None = None
+    LinkedInURL: str | None = Field(None, max_length=255)
+    Summary: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# JobSeeker — Register
-# ---------------------------------------------------------------------------
-class JobSeekerCreate(BaseModel):
+class JobSeekerBase(BaseModel):
     FirstName: str = Field(..., min_length=1, max_length=50)
-    LastName:  str = Field(..., min_length=1, max_length=50)
-    Email:     EmailStr
-    Password:  str = Field(..., min_length=8, description="Plain-text password — hashed before storage")
-    Phone:     Optional[str] = Field(None, max_length=20)
-
-    @field_validator("Password")
-    @classmethod
-    def password_strength(cls, v: str) -> str:
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit.")
-        return v
+    LastName: str = Field(..., min_length=1, max_length=50)
+    Email: EmailStr
+    Phone: str | None = Field(None, max_length=20)
 
 
-# ---------------------------------------------------------------------------
-# JobSeeker — Update (PATCH)
-# ---------------------------------------------------------------------------
+class JobSeekerCreate(JobSeekerBase):
+    Password: str = Field(..., min_length=8, max_length=255)
+
+
 class JobSeekerUpdate(BaseModel):
-    FirstName: Optional[str] = Field(None, min_length=1, max_length=50)
-    LastName:  Optional[str] = Field(None, min_length=1, max_length=50)
-    Phone:     Optional[str] = Field(None, max_length=20)
+    FirstName: str | None = Field(None, min_length=1, max_length=50)
+    LastName: str | None = Field(None, min_length=1, max_length=50)
+    Email: EmailStr | None = None
+    Password: str | None = Field(None, min_length=8, max_length=255)
+    Phone: str | None = Field(None, max_length=20)
 
 
-# ---------------------------------------------------------------------------
-# JobSeeker — Response (PasswordHash is NEVER included)
-# ---------------------------------------------------------------------------
 class JobSeekerOut(OrmBase):
-    SeekerID:  int
+    SeekerID: int
     FirstName: str
-    LastName:  str
-    Email:     str
-    Phone:     Optional[str] = None
-    cv_profile: Optional[CV_ProfileOut] = None
+    LastName: str
+    Email: EmailStr
+    Phone: str | None = None
+    cv_profile: CV_ProfileOut | None = None
+
+
+CVProfileBase = CV_ProfileBase
+CVProfileCreate = CV_ProfileCreate
+CVProfileUpdate = CV_ProfileUpdate
+CVProfileOut = CV_ProfileOut

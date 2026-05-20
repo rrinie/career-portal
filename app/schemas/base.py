@@ -1,8 +1,5 @@
 """
-schemas/base.py
----------------
-Shared Pydantic config used by all response schemas.
-from_attributes=True  →  allows Pydantic v2 to read from SQLAlchemy ORM objects.
+Shared Pydantic base classes.
 """
 
 from pydantic import BaseModel, ConfigDict
