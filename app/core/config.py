@@ -1,30 +1,26 @@
 """
 core/config.py
---------------
-Centralised settings loaded from the .env file via pydantic-settings.
-Access anywhere with:  from app.core.config import settings
 """
-
-import os
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
+import os
 
 
 class Settings(BaseSettings):
-    # ------------------------------------------------------------------
     # Database
-    # ------------------------------------------------------------------
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://localhost:5432/career_portal")  # e.g. postgresql://user:pass@localhost:5432/career_portal
+    DATABASE_URL: str
 
-    # ------------------------------------------------------------------
     # JWT
-    # ------------------------------------------------------------------
-    SECRET_KEY: str          # openssl rand -hex 32
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        # Path relative to WHERE you run uvicorn (project root)
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 settings = Settings()

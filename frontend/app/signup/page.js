@@ -3,11 +3,12 @@
 /**
  * app/signup/page.js
  * ------------------
- * Job Seeker sign-up page.
+ * Job Seeker and Company sign-up page.
  *
- * API call: POST /auth/signup
- * Payload:  { FirstName, LastName, Email, Password }   ← PascalCase to match
- *                                                         backend Pydantic schema
+ * API calls:
+ *   JobSeeker: POST /auth/jobseeker/register
+ *   Company:   POST /auth/company/register
+ * Payloads use PascalCase to match backend Pydantic schemas.
  * On success: redirects to /login with ?registered=1 so the login page can
  *             show a one-time success banner.
  *
@@ -19,7 +20,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import api, { isAuthenticated } from "../../lib/api";
+import { getApiErrorMessage, isAuthenticated, registerCompany, registerJobSeeker } from "../../lib/api";
 
 // ─── Logo mark — identical to login/page.js ───────────────────────────────────
 function LogoMark({ size = 32 }) {
@@ -113,13 +114,19 @@ function EyeToggle({ visible, onToggle }) {
 export default function SignupPage() {
   const router = useRouter();
 
+  const [actor, setActor] = useState("seeker");
+
   // Form state
   const [form, setForm] = useState({
     FirstName: "",
-    LastName:  "",
-    Email:     "",
-    Password:  "",
-    Confirm:   "",
+    LastName: "",
+    CompanyName: "",
+    Industry: "",
+    City: "",
+    Email: "",
+    ContactEmail: "",
+    Password: "",
+    Confirm: "",
   });
 
   // UI state
@@ -150,21 +157,36 @@ export default function SignupPage() {
   // before a network round-trip.
   function validate() {
     const e = {};
+    const emailField = actor === "seeker" ? "Email" : "ContactEmail";
+    const emailValue = form[emailField].trim();
 
-    if (!form.FirstName.trim())
-      e.FirstName = "First name is required.";
-    else if (form.FirstName.trim().length > 50)
-      e.FirstName = "Max 50 characters.";
+    if (actor === "seeker") {
+      if (!form.FirstName.trim())
+        e.FirstName = "First name is required.";
+      else if (form.FirstName.trim().length > 50)
+        e.FirstName = "Max 50 characters.";
 
-    if (!form.LastName.trim())
-      e.LastName = "Last name is required.";
-    else if (form.LastName.trim().length > 50)
-      e.LastName = "Max 50 characters.";
+      if (!form.LastName.trim())
+        e.LastName = "Last name is required.";
+      else if (form.LastName.trim().length > 50)
+        e.LastName = "Max 50 characters.";
+    } else {
+      if (!form.CompanyName.trim())
+        e.CompanyName = "Company name is required.";
+      else if (form.CompanyName.trim().length > 100)
+        e.CompanyName = "Max 100 characters.";
 
-    if (!form.Email.trim())
-      e.Email = "Email address is required.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Email))
-      e.Email = "Enter a valid email address.";
+      if (form.Industry.trim().length > 50)
+        e.Industry = "Max 50 characters.";
+
+      if (form.City.trim().length > 50)
+        e.City = "Max 50 characters.";
+    }
+
+    if (!emailValue)
+      e[emailField] = "Email address is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue))
+      e[emailField] = "Enter a valid email address.";
 
     if (!form.Password)
       e.Password = "Password is required.";
@@ -198,17 +220,24 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      // 2. POST to /auth/signup
-      //    Payload uses PascalCase to match the backend Pydantic schema exactly.
-      //    Confirm is a frontend-only field — never sent to the server.
-      await api.post("/auth/signup", {
-        FirstName: form.FirstName.trim(),
-        LastName:  form.LastName.trim(),
-        Email:     form.Email.trim(),
-        Password:  form.Password,
-      });
+      if (actor === "seeker") {
+        await registerJobSeeker({
+          FirstName: form.FirstName.trim(),
+          LastName: form.LastName.trim(),
+          Email: form.Email.trim(),
+          Password: form.Password,
+        });
+      } else {
+        await registerCompany({
+          CompanyName: form.CompanyName.trim(),
+          Industry: form.Industry.trim() || null,
+          City: form.City.trim() || null,
+          ContactEmail: form.ContactEmail.trim(),
+          Password: form.Password,
+        });
+      }
 
-      // 3. Success — redirect to login with a flag so it can show a banner
+      // Success — redirect to login with a flag so it can show a banner
       router.push("/login?registered=1");
 
     } catch (err) {
@@ -216,7 +245,7 @@ export default function SignupPage() {
       if (typeof detail === "string") {
         // Map known backend messages to the right field
         if (detail.toLowerCase().includes("email")) {
-          setErrors({ Email: detail });
+          setErrors({ [actor === "seeker" ? "Email" : "ContactEmail"]: detail });
         } else {
           setServerError(detail);
         }
@@ -230,7 +259,7 @@ export default function SignupPage() {
         });
         setErrors(mapped);
       } else {
-        setServerError("Could not connect to the server. Make sure the API is running on port 8002.");
+        setServerError(getApiErrorMessage(err));
       }
     } finally {
       setLoading(false);
@@ -240,9 +269,9 @@ export default function SignupPage() {
   // ── Derived: is the submit button activatable? ─────────────────────────────
   const canSubmit =
     !loading &&
-    form.FirstName &&
-    form.LastName &&
-    form.Email &&
+    (actor === "seeker"
+      ? form.FirstName && form.LastName && form.Email
+      : form.CompanyName && form.ContactEmail) &&
     form.Password &&
     form.Confirm;
 
@@ -270,9 +299,9 @@ export default function SignupPage() {
             Your next role<br />starts here.
           </h1>
           <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
-            Create your free Job Seeker account to browse open roles, build
-            your CV profile, and submit structured video interviews — all in
-            one place.
+            {actor === "seeker"
+              ? "Create your free Job Seeker account to browse open roles, build your CV profile, and submit structured video interviews."
+              : "Create a Company account to publish job postings, manage applications, and review structured video interviews."}
           </p>
         </div>
 
@@ -280,8 +309,8 @@ export default function SignupPage() {
         <div className="space-y-3">
           {[
             { n: "01", text: "Create your account"         },
-            { n: "02", text: "Build your CV profile"       },
-            { n: "03", text: "Apply and interview online"  },
+            { n: "02", text: actor === "seeker" ? "Build your CV profile" : "Publish job postings" },
+            { n: "03", text: actor === "seeker" ? "Apply and interview online" : "Review applications" },
           ].map(({ n, text }) => (
             <div key={n} className="flex items-center gap-3">
               <span className="text-[11px] font-bold text-accent font-mono w-6 flex-shrink-0">{n}</span>
@@ -305,47 +334,102 @@ export default function SignupPage() {
           <div className="mb-7">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Create account</h2>
             <p className="text-slate-500 text-sm">
-              Job Seeker · free forever
+              {actor === "seeker" ? "Job Seeker · free forever" : "Company · hiring workspace"}
             </p>
+          </div>
+
+          <div className="flex bg-slate-100 rounded-lg p-1 mb-6">
+            {[
+              ["seeker", "Job Seeker"],
+              ["company", "Company"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => { setActor(value); setErrors({}); setServerError(""); }}
+                className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all duration-150 ${
+                  actor === value
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Card */}
           <div className="card p-6">
             <form onSubmit={handleSubmit} noValidate>
 
-              {/* Name row */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <Field
-                  id="firstname"
-                  label="First name"
-                  value={form.FirstName}
-                  onChange={set("FirstName")}
-                  placeholder="Alex"
-                  autoComplete="given-name"
-                  error={errors.FirstName}
-                />
-                <Field
-                  id="lastname"
-                  label="Last name"
-                  value={form.LastName}
-                  onChange={set("LastName")}
-                  placeholder="Morgan"
-                  autoComplete="family-name"
-                  error={errors.LastName}
-                />
-              </div>
+              {actor === "seeker" ? (
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <Field
+                    id="firstname"
+                    label="First name"
+                    value={form.FirstName}
+                    onChange={set("FirstName")}
+                    placeholder="Alex"
+                    autoComplete="given-name"
+                    error={errors.FirstName}
+                  />
+                  <Field
+                    id="lastname"
+                    label="Last name"
+                    value={form.LastName}
+                    onChange={set("LastName")}
+                    placeholder="Morgan"
+                    autoComplete="family-name"
+                    error={errors.LastName}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <Field
+                      id="companyname"
+                      label="Company name"
+                      value={form.CompanyName}
+                      onChange={set("CompanyName")}
+                      placeholder="TechNova"
+                      autoComplete="organization"
+                      error={errors.CompanyName}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <Field
+                      id="industry"
+                      label="Industry"
+                      value={form.Industry}
+                      onChange={set("Industry")}
+                      placeholder="Software"
+                      autoComplete="organization-title"
+                      error={errors.Industry}
+                    />
+                    <Field
+                      id="city"
+                      label="City"
+                      value={form.City}
+                      onChange={set("City")}
+                      placeholder="Istanbul"
+                      autoComplete="address-level2"
+                      error={errors.City}
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Email */}
               <div className="mb-4">
                 <Field
                   id="email"
-                  label="Email address"
+                  label={actor === "seeker" ? "Email address" : "Company email"}
                   type="email"
-                  value={form.Email}
-                  onChange={set("Email")}
-                  placeholder="alex.morgan@email.com"
+                  value={actor === "seeker" ? form.Email : form.ContactEmail}
+                  onChange={actor === "seeker" ? set("Email") : set("ContactEmail")}
+                  placeholder={actor === "seeker" ? "alex.morgan@email.com" : "hr@technova.io"}
                   autoComplete="email"
-                  error={errors.Email}
+                  error={actor === "seeker" ? errors.Email : errors.ContactEmail}
                 />
               </div>
 
@@ -434,7 +518,7 @@ export default function SignupPage() {
                 disabled={!canSubmit}
                 className="btn-primary w-full justify-center"
               >
-                {loading ? <><Spinner /> Creating account…</> : "Create account"}
+                {loading ? <><Spinner /> Creating account…</> : actor === "seeker" ? "Create Job Seeker account" : "Create Company account"}
               </button>
 
             </form>

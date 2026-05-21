@@ -4,7 +4,7 @@
  * Central Axios instance for all API calls.
  *
  * Behaviours:
- *  1. baseURL points to FastAPI on port 8002.
+ *  1. baseURL is read from NEXT_PUBLIC_API_URL.
  *  2. Request interceptor: reads JWT from localStorage and attaches it as
  *     "Authorization: Bearer <token>" on every outgoing request.
  *  3. Response interceptor: on 401, clears the stored token + user and
@@ -26,15 +26,31 @@ import axios from "axios";
 export const TOKEN_KEY = "cp_access_token";
 export const USER_KEY  = "cp_user";
 
+function resolveApiBaseUrl() {
+  const rawUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+  if (!rawUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+  }
+
+  try {
+    const url = new URL(rawUrl);
+    return url.origin + url.pathname.replace(/\/$/, "");
+  } catch {
+    throw new Error(`NEXT_PUBLIC_API_URL must be an absolute URL. Received: ${rawUrl}`);
+  }
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
 // ---------------------------------------------------------------------------
 // Axios instance
 // ---------------------------------------------------------------------------
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8002",
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
   headers: {
-    "Content-Type": "application/json",
-  },
-  timeout: 10_000, // 10 seconds — surface hung requests early in development
+    'Content-Type': 'application/json'
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -116,6 +132,16 @@ export async function loginCompany(email, password) {
   return data;
 }
 
+export async function registerJobSeeker(payload) {
+  const { data } = await api.post("/auth/jobseeker/register", payload);
+  return data;
+}
+
+export async function registerCompany(payload) {
+  const { data } = await api.post("/auth/company/register", payload);
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // Token / user storage helpers
 // ---------------------------------------------------------------------------
@@ -145,6 +171,34 @@ export function getStoredUser() {
 export function isAuthenticated() {
   if (typeof window === "undefined") return false;
   return !!localStorage.getItem(TOKEN_KEY);
+}
+
+export function getResolvedRequestUrl(error) {
+  const requestUrl = error?.config?.url;
+  const baseUrl = error?.config?.baseURL || API_BASE_URL;
+
+  if (!requestUrl) return baseUrl;
+
+  try {
+    return new URL(requestUrl, `${baseUrl}/`).toString();
+  } catch {
+    return requestUrl;
+  }
+}
+
+export function getApiErrorMessage(error) {
+  const detail = error?.response?.data?.detail;
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg).filter(Boolean).join(". ");
+  }
+
+  const resolvedUrl = getResolvedRequestUrl(error);
+  const message = error?.message || "Request failed.";
+
+  return `${message} (${resolvedUrl})`;
 }
 
 // ---------------------------------------------------------------------------

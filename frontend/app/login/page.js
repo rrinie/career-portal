@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { loginJobSeeker, loginCompany, saveSession, seekerApi, companyApi, isAuthenticated } from "../../lib/api";
+import {
+  loginJobSeeker,
+  loginCompany,
+  saveSession,
+  seekerApi,
+  companyApi,
+  isAuthenticated,
+  getApiErrorMessage,
+} from "../../lib/api";
 
 // ─── Minimal SVG logo mark ────────────────────────────────────────────────────
 function LogoMark() {
@@ -97,15 +105,7 @@ export default function LoginPage() {
       router.push("/jobs");
 
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      if (typeof detail === "string") {
-        setError(detail);
-      } else if (Array.isArray(detail)) {
-        // Pydantic validation error array
-        setError(detail.map((d) => d.msg).join(". "));
-      } else {
-        setError("Could not connect to the server. Make sure the API is running on port 8002.");
-      }
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -328,15 +328,12 @@ export default function LoginPage() {
             }
           </p>
 
-          {/* Sign-up link — only relevant for job seekers */}
-          {actor === "seeker" && (
-            <p className="text-center text-sm text-slate-500 mt-2">
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-accent font-semibold hover:underline">
-                Sign up
-              </Link>
-            </p>
-          )}
+          <p className="text-center text-sm text-slate-500 mt-2">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="text-accent font-semibold hover:underline">
+              Sign up
+            </Link>
+          </p>
 
         </div>
       </div>
